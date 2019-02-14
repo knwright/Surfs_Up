@@ -1,6 +1,6 @@
 import numpy as np
 from sqlalchemy.ext.automap import automap_base
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy import create_engine, inspect, func
 from flask import Flask, jsonify
 
@@ -11,15 +11,13 @@ from flask import Flask, jsonify
 engine = create_engine('sqlite:///hawaii.sqlite', echo=False)
 Base = automap_base()
 Base.prepare(engine, reflect=True)
-# Base.classes.keys()
-# Save a reference to the measurement table as 'Measurement'
+
+Station = Base.classes.station
 Measurement = Base.classes.measurement
 
-# Save a reference to the station table as 'Station'
-Station = Base.classes.station
-
-# Create session (link) from Python to the DB
-session = Session(engine)
+# Create session link
+session_factory = sessionmaker(bind=engine)
+Session = scoped_session(session_factory)
 
 #################################################
 # Flask Setup
@@ -56,7 +54,7 @@ def precipitation():
     Convert the query results to a dictionary using date as the 'key 'and 'tobs' as the value."""
 
     # Retrieve the last 12 months of precipitation data
-    results1 = session.query(Measurement.date, func.avg(Measurement.prcp)).\
+    results1 = Session.query(Measurement.date, func.avg(Measurement.prcp)).\
                         filter(Measurement.date > '2016-08-23').\
                         group_by(Measurement.date).all()
 
@@ -73,7 +71,7 @@ def precipitation():
 @app.route("/api/v1.0/stations")
 def stations():
     """Return a json list of stations from the dataset."""
-    results2 = session.query(Station.name).all()
+    results2 = Session.query(Station.name).all()
 
     # Create a dictionary from the row data and append to a list of all_stations.
     station_list = list(np.ravel(results2))
@@ -83,7 +81,7 @@ def stations():
 @app.route("/api/v1.0/tobs")
 def tobs():
     """Return a json list of Temperature Observations (tobs) for the previous year"""
-    results3 = session.query(Measurement.tobs).filter(Measurement.date>'2016-08-23').all()
+    results3 = Session.query(Measurement.tobs).filter(Measurement.date>'2016-08-23').all()
                     
     # Create a dictionary from the row data and append to a list of for the temperature data.
     tobs_list = [record.tobs for record in results3]
@@ -94,7 +92,7 @@ def tobs():
 def temp_sum_start_end(start, end):
     """Return a json list of the minimum temperature, the average temperature, 
     and the max temperature for a given start-end date range."""
-    results4 = session.query(func.min(Measurement.tobs).label("min_temp"),
+    results4 = Session.query(func.min(Measurement.tobs).label("min_temp"),
                         func.avg(Measurement.tobs).label("avg_temp"),
                         func.max(Measurement.tobs).label("max_temp")).filter(Measurement.date.between(start,end)).all()
 
@@ -109,7 +107,7 @@ def temp_start_stats(start):
     max temperature for a given start date"""
     
     # Query all the stations and for the given date. 
-    results5 = session.query(func.min(Measurement.tobs).label("min_temp"),
+    results5 = Session.query(func.min(Measurement.tobs).label("min_temp"),
                         func.avg(Measurement.tobs).label("avg_temp"),
                         func.max(Measurement.tobs).label("max_temp")).filter(Measurement.date>=start).all()
     
